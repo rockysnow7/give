@@ -184,9 +184,10 @@ class Peer:
         message = bytes(message)
         if encrypt:
             self.init_key_gen(ip)
-            while ip not in self.keys or "key" not in self.keys[ip]:
-                pass
-            message = self.encrypt(message, self.keys[ip]["key"])
+            #while ip not in self.keys or "key" not in self.keys[ip]:
+            #    pass
+            #message = self.encrypt(message, self.keys[ip]["key"])
+            message = self.encrypt(message, -1)
 
         sock = socket.socket()
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
