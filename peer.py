@@ -108,6 +108,9 @@ class Peer:
     def init_key_gen(self, ip: str) -> int:
         p = sympy.randprime(0, PG_UPPER_LIMIT)
         g = random.choice(get_primitive_roots_mod_n(p))
+
+        if ip not in self.keys:
+            self.keys[ip] = {}
         self.keys[ip]["p"] = p
         self.keys[ip]["g"] = g
         print(f"sent {p=}, {g=}")
@@ -192,6 +195,8 @@ class Peer:
             data = input("mes: ")
             message_type = int(input("type: ") or 1)
             ip = input("ip: ")
+            if ip in {"", "localhost"}:
+                ip = "127.0.0.1"
 
             message = Message(data, MessageType(message_type), int(time.time()))
             try:
