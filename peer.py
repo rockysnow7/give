@@ -105,7 +105,7 @@ class Peer:
         threading.Thread(target=self.recv_loop).start()
 
 
-    def init_key_gen(self, ip: str) -> int:
+    def init_key_gen(self, ip: str) -> None:
         p = sympy.randprime(0, PG_UPPER_LIMIT)
         g = random.choice(get_primitive_roots_mod_n(p))
 
@@ -121,8 +121,6 @@ class Peer:
         data = f"\x00{p}{g}"
         message = Message(data, MessageType.KEY_EXCHANGE, int(time.time()))
         self.send_message(ip, message, encrypt=False)
-
-        return -1
 
     def handle_key_gen(self, message: Message) -> None:
         if ord(message.data[0]) == 0:
@@ -145,7 +143,11 @@ class Peer:
             self.keys[message.source]["A"] = bytes_to_int(message.data[2:], ENCODING_BASE)
 
             b = random.randint(0, PG_UPPER_LIMIT)
-            #B = 
+            B = pow(self.keys[message.source]["g"], b, self.keys[message.source]["p"])
+            B = "".join(chr(i) for i in pad_digits(int_to_base(B, ENCODING_BASE), PG_LEN))
+            response = Message(f"\x01{B}", MessageType.KEY_EXCHANGE, int(time.time()))
+
+            self.send_message(message.source, response, encrypt=False)
 
     def encrypt(self, data: bytes, key: int) -> bytes:
         return data
@@ -181,8 +183,10 @@ class Peer:
     def send_message(self, ip: str, message: Message, *, encrypt: bool) -> None:
         message = bytes(message)
         if encrypt:
-            key = self.init_key_gen(ip)
-            message = self.encrypt(message, -1)
+            self.init_key_gen(ip)
+            while ip not in self.keys or "key" not in self.keys[ip]:
+                pass
+            message = self.encrypt(message, self.keys[ip]["key"])
 
         sock = socket.socket()
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
