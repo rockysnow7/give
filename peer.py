@@ -10,6 +10,8 @@ from multipledispatch import dispatch
 from datetime import datetime
 
 
+PORT_NUM = 8001
+
 ENCODING_BASE = 2**7
 TIMESTAMP_LEN = math.ceil(math.log(2**31, ENCODING_BASE))  # num digits to encode unix time
 PG_UPPER_LIMIT = 2**10
@@ -37,12 +39,14 @@ def base_to_decimal(digits: list[int], b: int) -> int:
 def pad_digits(digits: list[int], n: int) -> list[int]:
     return [0]*(n - len(digits)) + digits
 
+def bytes_to_int(digits: bytes, b: int) -> int:
+    return base_to_decimal([ord(i) for i in digits], b)
+
 
 def is_primitive_root_mod_n(g: int, n: int) -> bool:
     if 0 <= g < n and math.gcd(g, n) == 1:
         for q in sympy.primefactors(sympy.totient(n)):
-            #if (g ** (sympy.totient(n) / q)) % n == 1:
-            if pow(g, int(sympy.totient(n) / q), n) == 1:
+            if pow(g, sympy.totient(n) // q, n) == 1:
                 return False
         return True
     return False
@@ -53,8 +57,9 @@ def get_primitive_roots_mod_n(n: int) -> list[int]:
 
 class MessageType(Enum):
     KEY_EXCHANGE = 0
-    URL = 1
-    FILE = 2
+    OTHER = 1
+    URL = 2
+    FILE = 3
 
 class Message:
     @dispatch(str, MessageType, int)
@@ -73,8 +78,9 @@ class Message:
 
     def __repr__(self) -> str:
         timestamp = datetime.utcfromtimestamp(self.timestamp).strftime("%Y-%m-%d %H:%M:%S")
+        data = self.data.encode()
 
-        return f"{self.source} at {timestamp}:\t{self.data}\t({self.message_type})"
+        return f"{self.source} at {timestamp}:\t{data}\t({self.message_type})"
 
     def __bytes__(self) -> bytes:
         timestamp = int_to_base(self.timestamp, ENCODING_BASE)
@@ -88,7 +94,7 @@ class Peer:
     def __init__(self) -> None:
         self.recv_socket = socket.socket()
         self.recv_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.recv_socket.bind(("", 8000))
+        self.recv_socket.bind(("", PORT_NUM))
 
         self.keys = {}
         self.messages = []
@@ -102,7 +108,9 @@ class Peer:
     def init_key_gen(self, ip: str) -> int:
         p = sympy.randprime(0, PG_UPPER_LIMIT)
         g = random.choice(get_primitive_roots_mod_n(p))
-        print(f"{p=}, {g=}")
+        self.keys[ip]["p"] = p
+        self.keys[ip]["g"] = g
+        print(f"sent {p=}, {g=}")
 
         p = "".join(chr(i) for i in pad_digits(int_to_base(p, ENCODING_BASE), PG_LEN))
         g = "".join(chr(i) for i in pad_digits(int_to_base(g, ENCODING_BASE), PG_LEN))
@@ -115,9 +123,11 @@ class Peer:
 
     def handle_key_gen(self, message: Message) -> None:
         if ord(message.data[0]) == 0:
-            p = base_to_decimal([ord(i) for i in message.data[1:PG_LEN+1]], ENCODING_BASE)
-            g = base_to_decimal([ord(i) for i in message.data[PG_LEN+1:2*PG_LEN + 1]], ENCODING_BASE)
-            print(f"{p=}, {g=}")
+            p = bytes_to_int(message.data[1:PG_LEN+1], ENCODING_BASE)
+            g = bytes_to_int(message.data[PG_LEN+1:2*PG_LEN + 1], ENCODING_BASE)
+            self.keys[message.source]["p"] = p
+            self.keys[message.source]["p"] = p
+            print(f"received {p=}, {g=}")
 
             if message.source not in self.keys:
                 self.keys[message.source] = {}
@@ -125,8 +135,14 @@ class Peer:
             A = self.keys[message.source]["a"] = pow(g, self.keys[message.source]["a"], p)
             A = "".join(chr(i) for i in pad_digits(int_to_base(A, ENCODING_BASE), PG_LEN))
             response = Message(f"\x01{A}", MessageType.KEY_EXCHANGE, int(time.time()))
-            
+
             self.send_message(message.source, response, encrypt=False)
+
+        elif ord(message.data[0]) == 1:
+            self.keys[message.source]["A"] = bytes_to_int(message.data[2:], ENCODING_BASE)
+
+            b = random.randint(0, PG_UPPER_LIMIT)
+            #B = 
 
     def encrypt(self, data: bytes, key: int) -> bytes:
         return data
@@ -167,14 +183,14 @@ class Peer:
 
         sock = socket.socket()
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.connect((ip, 8000))
+        sock.connect((ip, PORT_NUM))
         sock.send(message)
         sock.close()
 
     def send_loop(self) -> None:
         while self.is_running:
             data = input("mes: ")
-            message_type = int(input("type: "))
+            message_type = int(input("type: ") or 1)
             ip = input("ip: ")
 
             message = Message(data, MessageType(message_type), int(time.time()))
@@ -183,7 +199,7 @@ class Peer:
             except OSError:
                 print("Invalid IP address.\n")
 
-            time.sleep(0.1)
+            time.sleep(0.3)
 
             print("\nmessages:")
             for mes in self.messages:
