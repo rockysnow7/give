@@ -123,6 +123,7 @@ class Peer:
         self.send_message(ip, message, encrypt=False)
 
     def handle_key_gen(self, message: Message) -> None:
+        print(f"{message.source=}")
         if ord(message.data[0]) == 0:
             p = bytes_to_int(message.data[1:PG_LEN+1], ENCODING_BASE)
             g = bytes_to_int(message.data[PG_LEN+1:2*PG_LEN + 1], ENCODING_BASE)
