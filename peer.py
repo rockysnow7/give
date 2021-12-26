@@ -124,15 +124,17 @@ class Peer:
 
     def handle_key_gen(self, message: Message) -> None:
         print(f"{message.source=}")
+        if message.source not in self.keys:
+            self.keys[message.source] = {}
+
         if ord(message.data[0]) == 0:
             p = bytes_to_int(message.data[1:PG_LEN+1], ENCODING_BASE)
             g = bytes_to_int(message.data[PG_LEN+1:2*PG_LEN + 1], ENCODING_BASE)
+
             self.keys[message.source]["p"] = p
-            self.keys[message.source]["p"] = p
+            self.keys[message.source]["g"] = g
             print(f"received {p=}, {g=}")
 
-            if message.source not in self.keys:
-                self.keys[message.source] = {}
             self.keys[message.source]["a"] = random.randint(0, PG_UPPER_LIMIT)
             A = self.keys[message.source]["a"] = pow(g, self.keys[message.source]["a"], p)
             A = "".join(chr(i) for i in pad_digits(int_to_base(A, ENCODING_BASE), PG_LEN))
@@ -146,7 +148,7 @@ class Peer:
             b = random.randint(0, PG_UPPER_LIMIT)
             B = pow(self.keys[message.source]["g"], b, self.keys[message.source]["p"])
             B = "".join(chr(i) for i in pad_digits(int_to_base(B, ENCODING_BASE), PG_LEN))
-            response = Message(f"\x01{B}", MessageType.KEY_EXCHANGE, int(time.time()))
+            response = Message(f"\x02{B}", MessageType.KEY_EXCHANGE, int(time.time()))
 
             self.send_message(message.source, response, encrypt=False)
 
@@ -210,7 +212,7 @@ class Peer:
             except OSError:
                 print("Invalid IP address.\n")
 
-            time.sleep(0.3)
+            time.sleep(0.5)
 
             print("\nmessages:")
             for mes in self.messages:
