@@ -137,21 +137,23 @@ class Peer:
 
             self.keys[message.source]["a"] = random.randint(0, PG_UPPER_LIMIT)
             A = pow(g, self.keys[message.source]["a"], p)
+            print(f"sent {A=}")
             A = "".join(chr(i) for i in pad_digits(int_to_base(A, ENCODING_BASE), PG_LEN))
-            print(f"{A=}")
             response = Message(f"\x01{A}", MessageType.KEY_EXCHANGE, int(time.time()))
 
             self.send_message(message.source, response, encrypt=False)
 
         elif ord(message.data[0]) == 1:
-            self.keys[message.source]["A"] = bytes_to_int(message.data[2:], ENCODING_BASE)
+            A = bytes_to_int(message.data[2:], ENCODING_BASE)
+            self.keys[message.source]["A"] = A
+            print(f"received {A=}")
 
             b = random.randint(0, PG_UPPER_LIMIT)
             self.keys[message.source]["b"] = b
 
             B = pow(self.keys[message.source]["g"], b, self.keys[message.source]["p"])
+            print(f"sent {B=}")
             B = "".join(chr(i) for i in pad_digits(int_to_base(B, ENCODING_BASE), PG_LEN))
-            print(f"{B=}")
             response = Message(f"\x02{B}", MessageType.KEY_EXCHANGE, int(time.time()))
 
             self.send_message(message.source, response, encrypt=False)
@@ -162,7 +164,7 @@ class Peer:
 
         elif ord(message.data[0]) == 2:
             B = bytes_to_int(message.data[1:], ENCODING_BASE)
-            print(f"{B=}")
+            print(f"received {B=}")
             s = pow(B, self.keys[message.source]["a"], self.keys[message.source]["p"])
             self.keys[message.source]["key"] = s
             print(f"{self.keys=}")
