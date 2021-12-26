@@ -4,6 +4,8 @@ import time
 import math
 import sympy
 import random
+import re
+import webbrowser
 
 from enum import Enum
 from multipledispatch import dispatch
@@ -16,6 +18,7 @@ ENCODING_BASE = 2**7
 TIMESTAMP_LEN = math.ceil(math.log(2**31, ENCODING_BASE))  # num digits to encode unix time
 PG_UPPER_LIMIT = 2**10
 PG_LEN = math.ceil(math.log(PG_UPPER_LIMIT, ENCODING_BASE))  # num digits to encode p, g
+FILE_NAME_LEN = math.ceil(math.log(100, ENCODING_BASE))
 
 
 def int_to_base(n: int, b: int) -> list[int]:
@@ -113,7 +116,6 @@ class Peer:
             self.keys[ip] = {}
         self.keys[ip]["p"] = p
         self.keys[ip]["g"] = g
-        print(f"sent {p=}, {g=}")
 
         p = "".join(chr(i) for i in pad_digits(int_to_base(p, ENCODING_BASE), PG_LEN))
         g = "".join(chr(i) for i in pad_digits(int_to_base(g, ENCODING_BASE), PG_LEN))
@@ -123,7 +125,6 @@ class Peer:
         self.send_message(ip, message, encrypt=False)
 
     def handle_key_gen(self, message: Message) -> None:
-        print(f"{message.source=}")
         if message.source not in self.keys:
             self.keys[message.source] = {}
 
@@ -133,11 +134,9 @@ class Peer:
 
             self.keys[message.source]["p"] = p
             self.keys[message.source]["g"] = g
-            print(f"received {p=}, {g=}")
 
             self.keys[message.source]["a"] = random.randint(0, PG_UPPER_LIMIT)
             A = pow(g, self.keys[message.source]["a"], p)
-            print(f"sent {A=}")
             A = "".join(chr(i) for i in pad_digits(int_to_base(A, ENCODING_BASE), PG_LEN))
             response = Message(f"\x01{A}", MessageType.KEY_EXCHANGE, int(time.time()))
 
@@ -146,13 +145,11 @@ class Peer:
         elif ord(message.data[0]) == 1:
             A = bytes_to_int(message.data[1:], ENCODING_BASE)
             self.keys[message.source]["A"] = A
-            print(f"received {A=}")
 
             b = random.randint(0, PG_UPPER_LIMIT)
             self.keys[message.source]["b"] = b
 
             B = pow(self.keys[message.source]["g"], b, self.keys[message.source]["p"])
-            print(f"sent {B=}")
             B = "".join(chr(i) for i in pad_digits(int_to_base(B, ENCODING_BASE), PG_LEN))
             response = Message(f"\x02{B}", MessageType.KEY_EXCHANGE, int(time.time()))
 
@@ -160,14 +157,11 @@ class Peer:
 
             s = pow(self.keys[message.source]["A"], b, self.keys[message.source]["p"])
             self.keys[message.source]["key"] = s
-            print(f"{self.keys=}")
 
         elif ord(message.data[0]) == 2:
             B = bytes_to_int(message.data[1:], ENCODING_BASE)
-            print(f"received {B=}")
             s = pow(B, self.keys[message.source]["a"], self.keys[message.source]["p"])
             self.keys[message.source]["key"] = s
-            print(f"{self.keys=}")
 
     def encrypt(self, data: bytes, key: int) -> bytes:
         return data
@@ -194,6 +188,10 @@ class Peer:
 
                 if message.message_type == MessageType.KEY_EXCHANGE:
                     self.handle_key_gen(message)
+                elif message.message_type == MessageType.URL:
+                    choice = input(f"Open \"{message.data}\" (y/n)? ").lower()
+                    if choice == "y":
+                        webbrowser.open_new_tab(message.data)
             else:
                 self.is_running = False
 
@@ -217,8 +215,17 @@ class Peer:
 
     def send_loop(self) -> None:
         while self.is_running:
-            data = input("mes: ")
             message_type = int(input("type: ") or 1)
+            if message_type == 1:
+                data = input("data: ")
+            elif message_type == 2:
+                data = input("url: ")
+            elif message_type == 3:
+                path = input("path: ")
+                name = re.split(r"[\/]", path)[-1]
+                with open(path, "r") as f:
+                    data = f.read()
+                data = "".join(chr(i) for i in pad_digits(int_to_base(len(name), ENCODING_BASE), FILE_NAME_LEN))
             ip = input("ip: ")
             if ip in {"", "localhost"}:
                 ip = "127.0.0.1"
