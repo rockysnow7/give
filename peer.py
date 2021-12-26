@@ -136,8 +136,9 @@ class Peer:
             print(f"received {p=}, {g=}")
 
             self.keys[message.source]["a"] = random.randint(0, PG_UPPER_LIMIT)
-            A = self.keys[message.source]["a"] = pow(g, self.keys[message.source]["a"], p)
+            A = pow(g, self.keys[message.source]["a"], p)
             A = "".join(chr(i) for i in pad_digits(int_to_base(A, ENCODING_BASE), PG_LEN))
+            print(f"{A=}")
             response = Message(f"\x01{A}", MessageType.KEY_EXCHANGE, int(time.time()))
 
             self.send_message(message.source, response, encrypt=False)
@@ -150,6 +151,7 @@ class Peer:
 
             B = pow(self.keys[message.source]["g"], b, self.keys[message.source]["p"])
             B = "".join(chr(i) for i in pad_digits(int_to_base(B, ENCODING_BASE), PG_LEN))
+            print(f"{B=}")
             response = Message(f"\x02{B}", MessageType.KEY_EXCHANGE, int(time.time()))
 
             self.send_message(message.source, response, encrypt=False)
@@ -160,6 +162,7 @@ class Peer:
 
         elif ord(message.data[0]) == 2:
             B = bytes_to_int(message.data[1:], ENCODING_BASE)
+            print(f"{B=}")
             s = pow(B, self.keys[message.source]["a"], self.keys[message.source]["p"])
             self.keys[message.source]["key"] = s
             print(f"{self.keys=}")
@@ -201,8 +204,8 @@ class Peer:
             self.init_key_gen(ip)
             while ip not in self.keys or "key" not in self.keys[ip]:
                 pass
-            message = self.encrypt(message, self.keys[ip]["key"])
-            #message = self.encrypt(message, -1)
+            key = self.keys[ip]["key"]
+            message = self.encrypt(message, key)
 
         sock = socket.socket()
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
