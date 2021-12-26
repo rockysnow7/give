@@ -144,7 +144,7 @@ class Peer:
             self.send_message(message.source, response, encrypt=False)
 
         elif ord(message.data[0]) == 1:
-            A = bytes_to_int(message.data[2:], ENCODING_BASE)
+            A = bytes_to_int(message.data[1:], ENCODING_BASE)
             self.keys[message.source]["A"] = A
             print(f"received {A=}")
 
