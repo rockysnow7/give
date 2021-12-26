@@ -146,11 +146,23 @@ class Peer:
             self.keys[message.source]["A"] = bytes_to_int(message.data[2:], ENCODING_BASE)
 
             b = random.randint(0, PG_UPPER_LIMIT)
+            self.keys[message.source]["b"] = b
+
             B = pow(self.keys[message.source]["g"], b, self.keys[message.source]["p"])
             B = "".join(chr(i) for i in pad_digits(int_to_base(B, ENCODING_BASE), PG_LEN))
             response = Message(f"\x02{B}", MessageType.KEY_EXCHANGE, int(time.time()))
 
             self.send_message(message.source, response, encrypt=False)
+
+            s = pow(self.keys[message.source]["A"], b, self.keys[message.source]["p"])
+            self.keys[message.source]["key"] = s
+            print(f"{self.keys=}")
+
+        elif ord(message.data[0]) == 2:
+            B = bytes_to_int(message.data[1:], ENCODING_BASE)
+            s = pow(B, self.keys[message.source]["a"], self.keys[message.source]["p"])
+            self.keys[message.source]["key"] = s
+            print(f"{self.keys=}")
 
     def encrypt(self, data: bytes, key: int) -> bytes:
         return data
@@ -187,10 +199,10 @@ class Peer:
         message = bytes(message)
         if encrypt:
             self.init_key_gen(ip)
-            #while ip not in self.keys or "key" not in self.keys[ip]:
-            #    pass
-            #message = self.encrypt(message, self.keys[ip]["key"])
-            message = self.encrypt(message, -1)
+            while ip not in self.keys or "key" not in self.keys[ip]:
+                pass
+            message = self.encrypt(message, self.keys[ip]["key"])
+            #message = self.encrypt(message, -1)
 
         sock = socket.socket()
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
