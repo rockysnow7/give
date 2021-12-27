@@ -5,6 +5,7 @@ import math
 import sympy
 import random
 import re
+import os
 import webbrowser
 
 from enum import Enum
@@ -188,10 +189,21 @@ class Peer:
 
                 if message.message_type == MessageType.KEY_EXCHANGE:
                     self.handle_key_gen(message)
+
                 elif message.message_type == MessageType.URL:
                     choice = input(f"Open \"{message.data}\" (y/n)? ").lower()
                     if choice == "y":
                         webbrowser.open_new_tab(message.data)
+
+                elif message.message_type == MessageType.FILE:
+                    name_len = bytes_to_int(message.data[:FILE_NAME_LEN], ENCODING_BASE)
+                    name = message.data[FILE_NAME_LEN:name_len+FILE_NAME_LEN]
+                    choice = input(f"Download \"{name}\" (y/n)? ").lower()
+                    if choice == "y":
+                        path = input("Save to path: ") or "."
+                        data = message.data[name_len+FILE_NAME_LEN:]
+                        with open(os.path.join(path, name), "w+") as f:
+                            f.write(data)
             else:
                 self.is_running = False
 
@@ -215,17 +227,22 @@ class Peer:
 
     def send_loop(self) -> None:
         while self.is_running:
-            message_type = int(input("type: ") or 1)
-            if message_type == 1:
-                data = input("data: ")
-            elif message_type == 2:
+            message_type = input("type: ")
+            if message_type == "url":
+                message_type = MessageType.URL.value
                 data = input("url: ")
-            elif message_type == 3:
+            elif message_type == "file":
+                message_type = MessageType.FILE.value
+
                 path = input("path: ")
                 name = re.split(r"[\/]", path)[-1]
                 with open(path, "r") as f:
                     data = f.read()
-                data = "".join(chr(i) for i in pad_digits(int_to_base(len(name), ENCODING_BASE), FILE_NAME_LEN))
+                data = "".join(chr(i) for i in pad_digits(int_to_base(len(name), ENCODING_BASE), FILE_NAME_LEN)) + name + data
+            else:
+                message_type = MessageType.OTHER.value
+                data = input("data: ")
+
             ip = input("ip: ")
             if ip in {"", "localhost"}:
                 ip = "127.0.0.1"
@@ -238,7 +255,7 @@ class Peer:
 
             time.sleep(0.5)
 
-            print("\nmessages:")
-            for mes in self.messages:
-                print(f"\t{mes}")
-            print()
+            #print("\nmessages:")
+            #for mes in self.messages:
+            #    print(f"\t{mes}")
+            #print()
