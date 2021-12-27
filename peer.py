@@ -23,6 +23,17 @@ FILE_NAME_LEN = math.ceil(math.log(100, ENCODING_BASE))
 
 
 def int_to_base(n: int, b: int) -> list[int]:
+    """
+    Converts an int into a list of digits in a given base.
+
+    Args:
+        n (int): the base 10 number to be changed.
+        b (int): the base to which `n` will be changed.
+
+    Returns:
+        A list of digits (list[int]) representing the base `b` number.
+    """
+
     if n == 0:
         return [0]
 
@@ -34,6 +45,17 @@ def int_to_base(n: int, b: int) -> list[int]:
     return digits[::-1]
 
 def base_to_decimal(digits: list[int], b: int) -> int:
+    """
+    Converts a list of digits in a given base into base 10.
+
+    Args:
+        digits (list[int]): the list of digits to convert into base 10.
+        b (int): the base the digits are currently in.
+
+    Returns:
+        An int representing `digits` in base 10.
+    """
+
     total = 0
     for i in range(len(digits)):
         total += digits[-i-1] * (b ** i)
@@ -41,13 +63,46 @@ def base_to_decimal(digits: list[int], b: int) -> int:
     return total
 
 def pad_digits(digits: list[int], n: int) -> list[int]:
+    """
+    Prepend zeros to a list of digits.
+
+    Args:
+        digits (list[int]): a list of digits.
+        n (int): the desired final length, once zeros have been prepended.
+
+    Returns:
+        The same as `digits` but with zeros prepended to make it of length `n`.
+    """
+
     return [0]*(n - len(digits)) + digits
 
-def bytes_to_int(digits: bytes, b: int) -> int:
+def str_to_int(digits: str, b: int) -> int:
+    """
+    Interprets a string as a list of chars representing a base `b` number, and converts it to base 10.
+
+    Args:
+        digits (str): a string to be interpreted as digits.
+        b (int): the base the digits are in.
+
+    Returns:
+        A base 10 int.
+    """
+
     return base_to_decimal([ord(i) for i in digits], b)
 
 
 def is_primitive_root_mod_n(g: int, n: int) -> bool:
+    """
+    Tests if an int `g` is a primitive root mod `n` by testing if every number coprime to `n` is congruent to a power of `g` mod `n`.
+
+    Args:
+        g (int): the number to be tested.
+        n (int): the modulus.
+
+    Returns:
+        A bool representing whether `g` is a primitive root mod `n`.
+    """
+
     if 0 <= g < n and math.gcd(g, n) == 1:
         for q in sympy.primefactors(sympy.totient(n)):
             if pow(g, sympy.totient(n) // q, n) == 1:
@@ -56,6 +111,16 @@ def is_primitive_root_mod_n(g: int, n: int) -> bool:
     return False
 
 def get_primitive_roots_mod_n(n: int) -> list[int]:
+    """
+    Returns the list of primitive roots mod a given number.
+
+    Args:
+        n (int): the modulus.
+
+    Returns:
+        The list of primitive roots mod `n`.
+    """
+
     return [i for i in range(n) if is_primitive_root_mod_n(i, n)]
 
 
@@ -110,6 +175,13 @@ class Peer:
 
 
     def init_key_gen(self, ip: str) -> None:
+        """
+        Initiates a Diffie-Hellman key exchange with a given IP address, in preparation for encrypting a message to send to that IP.
+
+        Args:
+            ip (str): the IP address with which to initiate the key exchange.
+        """
+
         p = sympy.randprime(0, PG_UPPER_LIMIT)
         g = random.choice(get_primitive_roots_mod_n(p))
 
@@ -126,12 +198,19 @@ class Peer:
         self.send_message(ip, message, encrypt=False)
 
     def handle_key_gen(self, message: Message) -> None:
+        """
+        Handle a key exchange message from another IP address.
+
+        Args:
+            message (Message): the message containing info about the key exchange.
+        """
+
         if message.source not in self.keys:
             self.keys[message.source] = {}
 
         if ord(message.data[0]) == 0:
-            p = bytes_to_int(message.data[1:PG_LEN+1], ENCODING_BASE)
-            g = bytes_to_int(message.data[PG_LEN+1:2*PG_LEN + 1], ENCODING_BASE)
+            p = str_to_int(message.data[1:PG_LEN+1], ENCODING_BASE)
+            g = str_to_int(message.data[PG_LEN+1:2*PG_LEN + 1], ENCODING_BASE)
 
             self.keys[message.source]["p"] = p
             self.keys[message.source]["g"] = g
@@ -144,7 +223,7 @@ class Peer:
             self.send_message(message.source, response, encrypt=False)
 
         elif ord(message.data[0]) == 1:
-            A = bytes_to_int(message.data[1:], ENCODING_BASE)
+            A = str_to_int(message.data[1:], ENCODING_BASE)
             self.keys[message.source]["A"] = A
 
             b = random.randint(0, PG_UPPER_LIMIT)
@@ -160,15 +239,48 @@ class Peer:
             self.keys[message.source]["key"] = s
 
         elif ord(message.data[0]) == 2:
-            B = bytes_to_int(message.data[1:], ENCODING_BASE)
+            B = str_to_int(message.data[1:], ENCODING_BASE)
             s = pow(B, self.keys[message.source]["a"], self.keys[message.source]["p"])
             self.keys[message.source]["key"] = s
 
-    def encrypt(self, data: bytes, key: int) -> bytes:
+
+    def encrypt(self, data: str, key: int) -> str:
+        """
+        Unimplemented. Will encrypt data given a key.
+
+        Args:
+            data (str): the data to encrypt.
+            key (int): the key to be used in encryption.
+
+        Returns:
+            The encrypted form of the data.
+        """
+
+        return data
+
+    def decrypt(self, data: str, key: int) -> str:
+        """
+        Unimplemented. Will decrypt data given a key.
+
+        Args:
+            data (str): encrypted data.
+            key (int): the key used to decrypt the data.
+
+        Returns:
+            The decrypted form of the data.
+        """
+
         return data
 
 
     def recv_message(self) -> Message:
+        """
+        Receives a message and adds any necessary data.
+
+        Returns:
+            A received message.
+        """
+
         conn, addr = self.recv_socket.accept()
 
         data = conn.recv(1024)
@@ -180,9 +292,14 @@ class Peer:
         return message
 
     def recv_loop(self) -> None:
+        """One of the two main loops to be run. Handles received messages."""
+
         self.recv_socket.listen()
         while self.is_running:
             message = self.recv_message()
+            if message.message_type == MessageType.KEY_EXCHANGE:
+                message.data = self.decrypt(message.data, self.keys[message.source]["key"])
+
             if message.data:
                 print("\a", end="")
                 self.messages.append(message)
@@ -196,7 +313,7 @@ class Peer:
                         webbrowser.open_new_tab(message.data)
 
                 elif message.message_type == MessageType.FILE:
-                    name_len = bytes_to_int(message.data[:FILE_NAME_LEN], ENCODING_BASE)
+                    name_len = str_to_int(message.data[:FILE_NAME_LEN], ENCODING_BASE)
                     name = message.data[FILE_NAME_LEN:name_len+FILE_NAME_LEN]
                     choice = input(f"Download \"{name}\" (y/n)? ").lower()
                     if choice == "y":
@@ -211,6 +328,15 @@ class Peer:
 
 
     def send_message(self, ip: str, message: Message, *, encrypt: bool) -> None:
+        """
+        Sends a given message to a given IP address, optionally encrypting it.
+
+        Args:
+            ip (str): the IP address to which the message will be sent.
+            message (Message): the message to be sent.
+            encrypt (bool): whether or not to encrypt the message.
+        """
+
         message = bytes(message)
         if encrypt:
             self.init_key_gen(ip)
@@ -226,6 +352,8 @@ class Peer:
         sock.close()
 
     def send_loop(self) -> None:
+        """One of the two main loops to be run. Handles sending messages."""
+
         while self.is_running:
             message_type = input("type: ")
             if message_type == "url":
@@ -254,8 +382,3 @@ class Peer:
                 print("Invalid IP address.\n")
 
             time.sleep(0.5)
-
-            #print("\nmessages:")
-            #for mes in self.messages:
-            #    print(f"\t{mes}")
-            #print()
