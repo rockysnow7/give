@@ -297,7 +297,7 @@ class Peer:
         self.recv_socket.listen()
         while self.is_running:
             message = self.recv_message()
-            if message.message_type == MessageType.KEY_EXCHANGE:
+            if message.message_type != MessageType.KEY_EXCHANGE:
                 message.data = self.decrypt(message.data, self.keys[message.source]["key"])
 
             if message.data:
