@@ -173,6 +173,13 @@ class Peer:
         threading.Thread(target=self.send_loop).start()
         threading.Thread(target=self.recv_loop).start()
 
+        while self.is_running:
+            for ip in self.keys:
+                if "ack" in self.keys[ip] and not self.keys[ip]["ack"]:
+                    self.send_message(ip, self.keys[ip]["res"], encrypt=False)
+
+            time.sleep(0.5)
+
 
     def init_key_gen(self, ip: str) -> None:
         """
@@ -237,8 +244,8 @@ class Peer:
             self.keys[message.source]["key"] = s
 
             self.keys[message.source]["ack"] = False
-            while not self.keys[message.source]["ack"]:
-                self.send_message(message.source, response, encrypt=False)
+            self.keys[message.source]["res"] = response
+            self.send_message(message.source, response, encrypt=False)
 
         elif ord(message.data[0]) == 2:
             B = str_to_int(message.data[1:], ENCODING_BASE)
