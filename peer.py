@@ -233,15 +233,23 @@ class Peer:
             B = "".join(chr(i) for i in pad_digits(int_to_base(B, ENCODING_BASE), PG_LEN))
             response = Message(f"\x02{B}", MessageType.KEY_EXCHANGE, int(time.time()))
 
-            self.send_message(message.source, response, encrypt=False)
-
             s = pow(self.keys[message.source]["A"], b, self.keys[message.source]["p"])
             self.keys[message.source]["key"] = s
+
+            self.keys[message.source]["ack"] = False
+            while not self.keys[message.source]["ack"]:
+                self.send_message(message.source, response, encrypt=False)
 
         elif ord(message.data[0]) == 2:
             B = str_to_int(message.data[1:], ENCODING_BASE)
             s = pow(B, self.keys[message.source]["a"], self.keys[message.source]["p"])
             self.keys[message.source]["key"] = s
+
+            response = Message("\x03", MessageType.KEY_EXCHANGE, int(time.time()))
+            self.send_message(message.source, response, encrypt=False)
+
+        elif ord(message.data[0]) == 3:
+            self.keys[message.source]["ack"] = True
 
 
     def encrypt(self, data: str, key: int) -> str:
