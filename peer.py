@@ -343,8 +343,6 @@ class Peer:
                                     f.write(data)
                     else:
                         self.is_running = False
-                else:
-                    print(f"no key for {messsage.source}")
 
             time.sleep(0.1)
 
