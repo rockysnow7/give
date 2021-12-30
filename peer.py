@@ -165,9 +165,10 @@ class Peer:
         self.recv_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.recv_socket.bind(("", PORT_NUM))
 
+        self.is_running = True
         self.keys = {}
         self.messages = []
-        self.is_running = True
+        self.decrypt_queue = []
 
     def start(self) -> None:
         threading.Thread(target=self.send_loop).start()
@@ -312,32 +313,38 @@ class Peer:
         self.recv_socket.listen()
         while self.is_running:
             message = self.recv_message()
-            if message.message_type != MessageType.KEY_EXCHANGE:
-                message.data = self.decrypt(message.data, self.keys[message.source]["key"])
 
-            if message.data:
-                print("\a", end="")
-                self.messages.append(message)
-
-                if message.message_type == MessageType.KEY_EXCHANGE:
-                    self.handle_key_gen(message)
-
-                elif message.message_type == MessageType.URL:
-                    choice = input(f"Open \"{message.data}\" (y/n)? ").lower()
-                    if choice == "y":
-                        webbrowser.open_new_tab(message.data)
-
-                elif message.message_type == MessageType.FILE:
-                    name_len = str_to_int(message.data[:FILE_NAME_LEN], ENCODING_BASE)
-                    name = message.data[FILE_NAME_LEN:name_len+FILE_NAME_LEN]
-                    choice = input(f"Download \"{name}\" (y/n)? ").lower()
-                    if choice == "y":
-                        path = input("Save to path: ") or "."
-                        data = message.data[name_len+FILE_NAME_LEN:]
-                        with open(os.path.join(path, name), "w+") as f:
-                            f.write(data)
+            if message.message_type == MessageType.KEY_EXCHANGE:
+                self.handle_key_gen(message)
             else:
-                self.is_running = False
+                self.decrypt_queue.append(message)
+
+            for message in self.decrypt_queue:
+                if "key" in self.keys[message.source]:
+                    self.decrypt_queue = self.decrypt_queue[1:]
+
+                    if message.data:
+                        print("\a", end="")
+                        self.messages.append(message)
+
+                        if message.message_type == MessageType.URL:
+                            choice = input(f"Open \"{message.data}\" (y/n)? ").lower()
+                            if choice == "y":
+                                webbrowser.open_new_tab(message.data)
+
+                        elif message.message_type == MessageType.FILE:
+                            name_len = str_to_int(message.data[:FILE_NAME_LEN], ENCODING_BASE)
+                            name = message.data[FILE_NAME_LEN:name_len+FILE_NAME_LEN]
+                            choice = input(f"Download \"{name}\" (y/n)? ").lower()
+                            if choice == "y":
+                                path = input("Save to path: ") or "."
+                                data = message.data[name_len+FILE_NAME_LEN:]
+                                with open(os.path.join(path, name), "w+") as f:
+                                    f.write(data)
+                    else:
+                        self.is_running = False
+                else:
+                    print(f"no key for {messsage.source}")
 
             time.sleep(0.1)
 
